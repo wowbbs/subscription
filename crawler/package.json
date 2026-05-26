@@ -1,0 +1,20 @@
+{
+  "name": "customer-crawler",
+  "version": "1.0.0",
+  "description": "客户资料抓取程序",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "puppeteer-core": "^21.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "tsx": "^3.14.0",
+    "typescript": "^5.2.2"
+  }
+}
