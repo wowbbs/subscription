@@ -7,10 +7,11 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "analyze": "tsx src/analyze.ts"
+    "analyze": "tsx src/analyze.ts",
+    "install-browser": "npx playwright install chromium"
   },
   "dependencies": {
-    "puppeteer-core": "^21.0.0",
+    "@playwright/test": "^1.40.0",
     "dotenv": "^16.3.1"
   },
   "devDependencies": {

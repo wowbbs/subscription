@@ -1,58 +1,51 @@
-import puppeteer, { Browser, Page } from 'puppeteer-core';
+import { chromium, Browser, BrowserContext, Page } from '@playwright/test';
 import { BrowserConfig } from './types.js';
 import { defaultHeaders } from './config.js';
 
 export class BrowserController {
   private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
   private page: Page | null = null;
 
   constructor(private config: BrowserConfig) {}
 
   async launch(): Promise<void> {
-    const launchOptions: puppeteer.PuppeteerLaunchOptions = {
+    const launchOptions: any = {
       headless: this.config.headless,
-      executablePath: this.config.executablePath || this.findChromePath(),
+      channel: this.config.channel || 'chromium',
       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
         '--disable-blink-features=AutomationControlled',
         '--disable-dev-shm-usage',
+        '--no-sandbox',
       ],
-      defaultViewport: null,
     };
 
-    if (this.config.userDataDir) {
-      launchOptions.userDataDir = this.config.userDataDir;
+    if (this.config.executablePath) {
+      launchOptions.executablePath = this.config.executablePath;
     }
 
-    this.browser = await puppeteer.launch(launchOptions);
-    this.page = await this.browser.newPage();
+    this.browser = await chromium.launch(launchOptions);
+    this.context = await this.browser.newContext({
+      extraHTTPHeaders: defaultHeaders,
+      userAgent: defaultHeaders['User-Agent'],
+    });
+    this.page = await this.context.newPage();
 
     await this.setupPage();
-  }
-
-  private findChromePath(): string {
-    const possiblePaths = [
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    ];
-
-    return possiblePaths[0];
   }
 
   private async setupPage(): Promise<void> {
     if (!this.page) return;
 
-    await this.page.setUserAgent(defaultHeaders['User-Agent']);
-    await this.page.setExtraHTTPHeaders(defaultHeaders);
-
-    await this.page.evaluateOnNewDocument(() => {
+    await this.page.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined,
+        get: () => false,
       });
+    });
+
+    await this.context?.route('**/*', (route) => {
+      const headers = { ...defaultHeaders };
+      route.continue({ headers });
     });
   }
 
@@ -64,9 +57,21 @@ export class BrowserController {
     return this.browser;
   }
 
+  getContext(): BrowserContext | null {
+    return this.context;
+  }
+
   async setCustomHeaders(headers: Record<string, string>): Promise<void> {
-    if (!this.page) return;
-    await this.page.setExtraHTTPHeaders({ ...defaultHeaders, ...headers });
+    if (!this.context) return;
+
+    await this.context.addInitScript((customHeaders) => {
+      window.customHeaders = customHeaders;
+    }, headers);
+
+    await this.context.route('**/*', (route) => {
+      const mergedHeaders = { ...defaultHeaders, ...headers };
+      route.continue({ headers: mergedHeaders });
+    });
   }
 
   async close(): Promise<void> {

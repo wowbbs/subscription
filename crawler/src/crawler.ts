@@ -1,4 +1,4 @@
-import { Page } from 'puppeteer-core';
+import type { Page } from '@playwright/test';
 import { BrowserController } from './browser.js';
 import { CrawlerConfig, CustomerData } from './types.js';
 import * as fs from 'fs';
@@ -13,7 +13,7 @@ export class CustomerCrawler {
 
   async initialize(): Promise<void> {
     await this.browserController.launch();
-    
+
     if (Object.keys(this.config.customHeaders).length > 0) {
       await this.browserController.setCustomHeaders(this.config.customHeaders);
     }
@@ -24,7 +24,7 @@ export class CustomerCrawler {
     if (!page) throw new Error('Page not initialized');
 
     console.log(`正在导航到: ${this.config.targetUrl}`);
-    await page.goto(this.config.targetUrl, { waitUntil: 'networkidle2' });
+    await page.goto(this.config.targetUrl, { waitUntil: 'networkidle' });
   }
 
   async login(username?: string, password?: string): Promise<boolean> {
@@ -36,22 +36,22 @@ export class CustomerCrawler {
 
     try {
       await page.waitForSelector('input[type="text"], input[name="username"], input[name="user"]', { timeout: 10000 });
-      
-      const usernameInput = await page.$('input[type="text"], input[name="username"], input[name="user"]');
-      const passwordInput = await page.$('input[type="password"], input[name="password"]');
-      const loginButton = await page.$('button[type="submit"], input[type="submit"], .login-btn');
 
-      if (usernameInput) {
-        await usernameInput.type(user);
+      const usernameInput = page.locator('input[type="text"], input[name="username"], input[name="user"]').first();
+      const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
+      const loginButton = page.locator('button[type="submit"], input[type="submit"], .login-btn').first();
+
+      if (await usernameInput.isVisible()) {
+        await usernameInput.fill(user);
       }
 
-      if (passwordInput) {
-        await passwordInput.type(pass);
+      if (await passwordInput.isVisible()) {
+        await passwordInput.fill(pass);
       }
 
-      if (loginButton) {
+      if (await loginButton.isVisible()) {
         await loginButton.click();
-        await page.waitForNavigation({ waitUntil: 'networkidle2' });
+        await page.waitForLoadState('networkidle');
       }
 
       console.log('登录操作完成');
@@ -68,7 +68,7 @@ export class CustomerCrawler {
 
     console.log('请在浏览器中完成登录和导航到客户列表页面...');
     console.log('准备好后，在控制台按回车键继续...');
-    
+
     await new Promise(resolve => {
       process.stdin.once('data', resolve);
     });
@@ -83,11 +83,11 @@ export class CustomerCrawler {
     const data = await page.evaluate(() => {
       const customers: CustomerData[] = [];
       const rows = document.querySelectorAll('table tr, .customer-row, [class*="customer"]');
-      
+
       rows.forEach(row => {
         const customer: CustomerData = {};
         const cells = row.querySelectorAll('td, .customer-cell, [class*="cell"]');
-        
+
         cells.forEach((cell, index) => {
           const text = cell.textContent?.trim() || '';
           if (text) {
@@ -109,7 +109,7 @@ export class CustomerCrawler {
 
   async saveData(data: CustomerData[]): Promise<void> {
     const outputDir = path.dirname(this.config.outputPath);
-    
+
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }

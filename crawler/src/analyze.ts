@@ -18,10 +18,12 @@ async function analyzeHeaders() {
     console.log('启动浏览器用于分析...');
     await browserController.launch();
     const page = browserController.getPage();
+    const context = browserController.getContext();
 
-    if (!page) throw new Error('页面初始化失败');
+    if (!page || !context) throw new Error('页面初始化失败');
 
-    page.on('request', (request) => {
+    await context.route('**/*', (route) => {
+      const request = route.request();
       console.log('\n=== 请求信息 ===');
       console.log('URL:', request.url());
       console.log('方法:', request.method());
@@ -30,6 +32,8 @@ async function analyzeHeaders() {
       Object.entries(headers).forEach(([key, value]) => {
         console.log(`  ${key}: ${value}`);
       });
+
+      route.continue();
     });
 
     page.on('response', (response) => {

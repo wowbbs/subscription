@@ -1,7 +1,10 @@
+import type { Browser, BrowserContext, Page } from '@playwright/test';
+
 export interface BrowserConfig {
-  executablePath?: string;
   headless: boolean;
-  userDataDir?: string;
+  channel?: 'chrome' | 'chromium' | 'msedge';
+  executablePath?: string;
+  args?: string[];
 }
 
 export interface CrawlerConfig {
@@ -19,4 +22,10 @@ export interface CustomerData {
   phone?: string;
   email?: string;
   [key: string]: unknown;
+}
+
+export interface BrowserController {
+  browser: Browser | null;
+  context: BrowserContext | null;
+  page: Page | null;
 }

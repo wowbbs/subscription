@@ -24,9 +24,9 @@ export function getConfig(): CrawlerConfig {
     password: process.env.PASSWORD || '',
     outputPath: process.env.OUTPUT_PATH || './data/customers.json',
     browser: {
+      headless: process.env.HEADLESS !== 'true',
+      channel: (process.env.BROWSER_CHANNEL as 'chrome' | 'chromium' | 'msedge') || 'chromium',
       executablePath: process.env.CHROME_PATH,
-      headless: process.env.HEADLESS === 'true',
-      userDataDir: process.env.USER_DATA_DIR,
     },
     customHeaders: {},
   };
