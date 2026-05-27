@@ -66,7 +66,7 @@ export class BrowserController {
   private async setupPage(): Promise<void> {
     if (!this.page) return;
 
-    // 隐藏自动化特征
+    // 隐藏自动化特征，同时模拟 Electron 环境
     await this.page.addInitScript(() => {
       // 1. 隐藏 webdriver
       Object.defineProperty(navigator, 'webdriver', {
@@ -74,14 +74,70 @@ export class BrowserController {
         configurable: true,
       });
 
-      // 2. 隐藏 chrome 属性
+      // 2. 模拟 Electron 环境
+      // @ts-ignore
+      window.process = {
+        type: 'renderer',
+        versions: {
+          node: '14.16.0',
+          electron: '13.6.9',
+          chrome: '91.0.4472.164',
+        },
+      };
+      
+      // @ts-ignore
+      window.require = function () {};
+      // @ts-ignore
+      window.module = { exports: {} };
+      // @ts-ignore
+      window.exports = {};
+
+      // 3. 添加 Kd-Browser 标识
+      // @ts-ignore
+      window.KdBrowser = {
+        version: '3.2.24',
+      };
+
+      // 4. 修改 chrome 属性，模拟 Electron 环境
       const originalChrome = window.chrome;
       Object.defineProperty(window, 'chrome', {
-        get: () => originalChrome,
+        get: () => ({
+          ...originalChrome,
+          app: {
+            isInstalled: false,
+            installState: 'disabled',
+            runningState: 'cannot_run',
+          },
+          runtime: {
+            id: undefined,
+            lastError: undefined,
+            onMessage: {
+              addListener: () => {},
+              removeListener: () => {},
+              hasListener: () => false,
+            },
+            sendMessage: () => {},
+            connect: () => ({
+              onMessage: {
+                addListener: () => {},
+                removeListener: () => {},
+                hasListener: () => false,
+              },
+              onDisconnect: {
+                addListener: () => {},
+                removeListener: () => {},
+                hasListener: () => false,
+              },
+              disconnect: () => {},
+              postMessage: () => {},
+              name: '',
+            }),
+          },
+        }),
         configurable: true,
       });
 
-      // 3. 隐藏 navigator.plugins 和 navigator.mimeTypes 的检查
+      // 5. 隐藏 navigator.plugins 和 navigator.mimeTypes 的检查
       const originalPlugins = navigator.plugins;
       const originalMimeTypes = navigator.mimeTypes;
       Object.defineProperty(navigator, 'plugins', {
@@ -93,28 +149,40 @@ export class BrowserController {
         configurable: true,
       });
 
-      // 4. 修改 navigator.languages
+      // 6. 修改 navigator.languages
       Object.defineProperty(navigator, 'languages', {
         get: () => ['zh-CN', 'zh', 'en'],
         configurable: true,
       });
 
-      // 5. 修改 permissions API
-      const originalQuery = window.navigator.permissions.query;
+      // 7. 修改 navigator.appVersion
+      Object.defineProperty(navigator, 'appVersion', {
+        get: () => '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36',
+        configurable: true,
+      });
+
+      // 8. 修改 navigator.platform
+      Object.defineProperty(navigator, 'platform', {
+        get: () => 'Win32',
+        configurable: true,
+      });
+
+      // 9. 修改 permissions API
+      const originalQuery = window.navigator.permissions?.query;
       if (originalQuery) {
         window.navigator.permissions.query = (parameters: PermissionDescriptor) => {
           return parameters.name === 'notifications'
-            ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+            ? Promise.resolve({ state: 'granted' } as PermissionStatus)
             : originalQuery(parameters);
         };
       }
 
-      // 6. 隐藏 Playwright 注入的标记
+      // 10. 隐藏 Playwright 注入的标记
       delete window.__playwright;
       delete window.__PW_inspect;
       delete window.__PW_driver;
 
-      // 7. 移除 console 中的调试标记
+      // 11. 移除 console 中的调试标记
       const originalLog = console.log;
       console.log = function (...args) {
         if (args[0] && typeof args[0] === 'string' && args[0].includes('playwright')) {
