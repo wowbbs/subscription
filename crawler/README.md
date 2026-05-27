@@ -9,6 +9,7 @@
 - ✅ **无需安装 Node.js** - 使用你已有的 Python 环境
 - ✅ **已配置 Electron 模拟** - 模拟 kdbrowser 的运行环境
 - ✅ **已设置正确的请求头** - 与 kdbrowser 完全一致
+- ✅ **支持离线安装** - 为内网环境专门准备
 - ✅ **操作简单** - 只需几个命令就能运行
 
 ---
@@ -23,6 +24,60 @@
 | [config.py](file:///workspace/crawler/config.py) | 配置文件 - 请求头、参数等 |
 | [requirements.txt](file:///workspace/crawler/requirements.txt) | Python 依赖列表 |
 | [.env.example](file:///workspace/crawler/.env.example) | 环境变量模板 |
+| [prepare_offline.bat](file:///workspace/crawler/prepare_offline.bat) | Windows - 外网准备脚本 |
+| [install_offline.bat](file:///workspace/crawler/install_offline.bat) | Windows - 内网安装脚本 |
+| [prepare_offline.sh](file:///workspace/crawler/prepare_offline.sh) | Linux/Mac - 外网准备脚本 |
+| [install_offline.sh](file:///workspace/crawler/install_offline.sh) | Linux/Mac - 内网安装脚本 |
+| [离线安装准备.md](file:///workspace/crawler/离线安装准备.md) | 详细离线安装说明 |
+
+---
+
+## 🔌 离线安装说明（内网环境）
+
+如果内网无法访问外网，请使用离线安装方式。
+
+### 第一步：在外网电脑上准备安装包
+
+**Windows 用户：**
+```cmd
+# 双击运行
+prepare_offline.bat
+```
+
+**Linux/Mac 用户：**
+```bash
+chmod +x prepare_offline.sh
+./prepare_offline.sh
+```
+
+这一步会：
+1. 下载所有 Python 依赖包到 `offline_packages/` 文件夹
+2. 下载浏览器到 `offline_browsers/` 文件夹
+3. 自动整理好所有文件
+
+准备完成后，把**整个 crawler 文件夹**复制到内网电脑。
+
+### 第二步：在内网电脑上安装
+
+**Windows 用户：**
+```cmd
+# 双击运行
+install_offline.bat
+```
+
+**Linux/Mac 用户：**
+```bash
+chmod +x install_offline.sh
+./install_offline.sh
+```
+
+安装完成后，继续下面的「配置环境变量」步骤。
+
+---
+
+## 🌐 在线安装说明（有外网环境）
+
+如果有外网环境，可以直接使用在线安装。
 
 ---
 
