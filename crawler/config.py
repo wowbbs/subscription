@@ -30,7 +30,7 @@ DEFAULT_HEADERS: Dict[str, str] = {
 class BrowserConfig:
     """浏览器配置"""
     headless: bool = False
-    channel: str = 'chromium'
+    channel: str = 'chrome'  # 默认使用系统已安装的 Chrome
     executable_path: str = None
 
 
@@ -54,7 +54,7 @@ def load_config() -> CrawlerConfig:
         output_path=os.getenv('OUTPUT_PATH', './data/customers.json'),
         browser=BrowserConfig(
             headless=os.getenv('HEADLESS', 'false').lower() != 'true',
-            channel=os.getenv('BROWSER_CHANNEL', 'chromium'),
+            channel=os.getenv('BROWSER_CHANNEL', 'chrome'),  # 默认使用系统 Chrome
             executable_path=os.getenv('CHROME_PATH'),
         ),
         custom_headers={},
