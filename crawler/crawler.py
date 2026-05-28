@@ -13,9 +13,12 @@ from config import CrawlerConfig, load_config
 class CustomerCrawler:
     """客户数据抓取器"""
 
-    def __init__(self, config: CrawlerConfig):
-        self.config = config
-        self.browser_controller = BrowserController(config.browser)
+    def __init__(self, target_url=None, username="", password="", output_path="./data/customers.json"):
+        self.target_url = target_url or "https://qiankundg.web.guosen.com.cn/apps/opp/index.html?theme=web2"
+        self.username = username
+        self.password = password
+        self.output_path = output_path
+        self.browser_controller = BrowserController(headless=False)
 
     def initialize(self):
         """初始化浏览器"""
@@ -29,8 +32,8 @@ class CustomerCrawler:
         if not page:
             raise Exception("页面未初始化")
 
-        print(f"正在导航到: {self.config.target_url}")
-        page.goto(self.config.target_url, wait_until='networkidle')
+        print(f"正在导航到: {self.target_url}")
+        page.goto(self.target_url, wait_until='networkidle')
         print("导航完成！")
 
     def login(self, username: str = None, password: str = None) -> bool:
@@ -39,8 +42,8 @@ class CustomerCrawler:
         if not page:
             raise Exception("页面未初始化")
 
-        user = username or self.config.username
-        passwd = password or self.config.password
+        user = username or self.username
+        passwd = password or self.password
 
         try:
             # 等待登录表单出现
@@ -123,7 +126,7 @@ class CustomerCrawler:
 
     def save_data(self, data: List[Dict[str, Any]]):
         """保存数据到文件"""
-        output_path = Path(self.config.output_path)
+        output_path = Path(self.output_path)
 
         # 确保目录存在
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,18 +148,8 @@ class CustomerCrawler:
 
 def main():
     """主函数"""
-    # 加载配置
-    config = load_config()
-
-    if not config.target_url:
-        print("错误：请设置 TARGET_URL 环境变量")
-        print("示例：")
-        print("  Windows: set TARGET_URL=https://qiankundg.web.guosen.com.cn/apps/opp/index.html?theme=web2")
-        print("  Linux/Mac: export TARGET_URL=https://qiankundg.web.guosen.com.cn/apps/opp/index.html?theme=web2")
-        return
-
-    # 创建抓取器
-    crawler = CustomerCrawler(config)
+    # 创建抓取器，不需要配置文件
+    crawler = CustomerCrawler()
 
     try:
         # 初始化

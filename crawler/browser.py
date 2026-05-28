@@ -8,8 +8,10 @@ from config import DEFAULT_HEADERS, BrowserConfig
 class BrowserController:
     """浏览器控制器"""
 
-    def __init__(self, config: BrowserConfig):
-        self.config = config
+    def __init__(self, headless=False, channel='chrome', executable_path=None):
+        self.headless = headless
+        self.channel = channel
+        self.executable_path = executable_path
         self.browser: Browser = None
         self.context: BrowserContext = None
         self.page: Page = None
@@ -20,8 +22,8 @@ class BrowserController:
 
         # 构建启动参数
         launch_options = {
-            'headless': self.config.headless,
-            'channel': self.config.channel,
+            'headless': self.headless,
+            'channel': self.channel,
             'args': [
                 '--disable-blink-features=AutomationControlled',
                 '--disable-dev-shm-usage',
@@ -52,8 +54,8 @@ class BrowserController:
             ],
         }
 
-        if self.config.executable_path:
-            launch_options['executable_path'] = self.config.executable_path
+        if self.executable_path:
+            launch_options['executable_path'] = self.executable_path
 
         # 启动浏览器
         self.browser = playwright.chromium.launch(**launch_options)
