@@ -5,6 +5,7 @@ import time
 import win32clipboard
 import win32api
 import win32con
+import win32gui
 
 
 def copy_clipboard():
@@ -40,10 +41,31 @@ def select_all_copy():
     return copy_clipboard()
 
 
+def find_and_activate_kdbrowser():
+    def callback(hwnd, extra):
+        title = win32gui.GetWindowText(hwnd)
+        if '受理平台' in title or '乾坤' in title:
+            extra.append(hwnd)
+        return True
+
+    windows = []
+    win32gui.EnumWindows(callback, windows)
+    
+    if windows:
+        hwnd = windows[0]
+        print(f"找到窗口: {win32gui.GetWindowText(hwnd)}")
+        win32gui.SetForegroundWindow(hwnd)
+        time.sleep(1)
+        return True
+    return False
+
+
 def main():
     print("准备抓取网页内容...")
-    print("请确保 kdbrowser 窗口是活动窗口")
-    input("按 Enter 开始...")
+
+    if not find_and_activate_kdbrowser():
+        print("❌ 未找到 kdbrowser 窗口")
+        return
 
     print("正在执行 Ctrl+A Ctrl+C...")
     content = select_all_copy()
