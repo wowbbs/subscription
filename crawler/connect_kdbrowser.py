@@ -4,23 +4,26 @@
 import asyncio
 import json
 import base64
-import hashlib
 import urllib.request
-import sys
+from urllib.parse import urlparse
 
 
 async def websocket_connect(url):
-    ws_host, ws_path = url.replace("ws://", "").split("/", 1)
-    ws_path = "/" + ws_path
+    parsed = urlparse(url)
+    host = parsed.netloc or parsed.path.split("/")[0]
+    path = parsed.path or "/"
+
+    if ":" not in host:
+        host = host + ":9222"
 
     import asyncio
-    reader, writer = await asyncio.open_connection(ws_host, 9222)
+    reader, writer = await asyncio.open_connection(host, 9222)
 
     key = base64.b64encode(b"randomkey12345678").decode()
 
     handshake = (
-        f"GET {ws_path} HTTP/1.1\r\n"
-        f"Host: {ws_host}\r\n"
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {host}\r\n"
         f"Upgrade: websocket\r\n"
         f"Connection: Upgrade\r\n"
         f"Sec-WebSocket-Key: {key}\r\n"
@@ -30,8 +33,12 @@ async def websocket_connect(url):
     await writer.drain()
 
     response = await reader.read(1024)
-    print("WebSocket 握手响应:", response.decode()[:200])
+    if b"101" not in response:
+        print("WebSocket 握手失败:", response.decode()[:200])
+        writer.close()
+        return None, None
 
+    print("WebSocket 握手成功!")
     return reader, writer
 
 
@@ -54,7 +61,7 @@ async def ws_send(writer, msg_id, method, params=None):
 
 
 async def ws_recv(reader):
-    data = await reader.read(4096)
+    data = await reader.read(8192)
     if len(data) < 2:
         return None
     length = data[1] & 0x7F
@@ -83,15 +90,18 @@ async def main():
             print(f"  [{i}] {t.get('title', '无标题')}")
 
         target = next((t for t in targets if 'qiankun' in t.get('url', '').lower() or '受理' in t.get('title', '')), targets[0])
-        ws_url = target.get('webSocketDebuggerUrl')
+        ws_url = target.get("webSocketDebuggerUrl")
 
         if not ws_url:
             print("未找到 WebSocket URL")
             return
 
         print(f"\n正在连接到: {target.get('title')}")
+        print(f"WebSocket URL: {ws_url}")
 
         reader, writer = await websocket_connect(ws_url)
+        if not reader:
+            return
 
         await ws_send(writer, 1, "Page.enable")
         resp = await ws_recv(reader)
@@ -108,11 +118,7 @@ async def main():
         resp = await ws_recv(reader)
         print(f"\n页面标题: {resp}")
 
-        await ws_send(writer, 4, "DOM.getDocument", {"depth": 0})
-        resp = await ws_recv(reader)
-        print(f"\nDOM 根节点: {resp}")
-
-        print("\n✅ 连接成功！现在可以在 kdbrowser 中操作页面，然后执行抓取")
+        print("\n✅ 连接成功！现在可以执行抓取")
 
         writer.close()
         await writer.wait_closed()
