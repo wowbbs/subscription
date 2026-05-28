@@ -1,52 +1,63 @@
 """
-UI Automation 抓取工具 - 通过读取窗口内容获取数据
+通过键盘模拟抓取网页内容
 """
 import time
-from pywinauto import Application, findwindows
+import win32clipboard
+import win32api
+import win32con
 
 
-def find_kdbrowser_window():
-    windows = findwindows.find_windows(title_re=".*受理平台.*|.*乾坤.*|.*kdbrowser.*")
-    if windows:
-        return windows[0]
-    return None
-
-
-def get_window_text(hwnd):
+def copy_clipboard():
+    win32clipboard.OpenClipboard()
     try:
-        app = Application().connect(handle=hwnd)
-        window = app.window(handle=hwnd)
-        return window.texts()
-    except Exception as e:
-        print(f"获取窗口内容失败: {e}")
-        return []
+        data = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+    except:
+        data = ""
+    win32clipboard.CloseClipboard()
+    return data
+
+
+def send_keys(key, hold=False):
+    win32api.keybd_event(key, 0, 0, 0)
+    if not hold:
+        time.sleep(0.05)
+        win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
+
+
+def select_all_copy():
+    send_keys(win32con.VK_CONTROL, hold=True)
+    send_keys(ord('A'))
+    win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+    
+    time.sleep(0.5)
+    
+    send_keys(win32con.VK_CONTROL, hold=True)
+    send_keys(ord('C'))
+    win32api.keybd_event(win32con.VK_CONTROL, 0, win32con.KEYEVENTF_KEYUP, 0)
+    
+    time.sleep(0.5)
+    
+    return copy_clipboard()
 
 
 def main():
-    print("正在查找 kdbrowser 窗口...")
+    print("准备抓取网页内容...")
+    print("请确保 kdbrowser 窗口是活动窗口")
+    input("按 Enter 开始...")
 
-    hwnd = find_kdbrowser_window()
-    if not hwnd:
-        print("未找到 kdbrowser 窗口")
-        return
+    print("正在执行 Ctrl+A Ctrl+C...")
+    content = select_all_copy()
 
-    print(f"找到窗口: {hwnd}")
+    print(f"\n抓取到 {len(content)} 字符")
+    print("前500字符预览:")
+    print(content[:500])
 
-    print("\n获取窗口内容...")
-    texts = get_window_text(hwnd)
-
-    print(f"找到 {len(texts)} 个文本元素:")
-    for i, text in enumerate(texts):
-        if text.strip() and len(text) > 1:
-            print(f"  [{i}] {text[:100]}")
-
-    print("\n保存内容到文件...")
-    with open("window_content.txt", "w", encoding="utf-8") as f:
-        for text in texts:
-            if text.strip():
-                f.write(text + "\n")
-
-    print("✅ 已保存到 window_content.txt")
+    if content:
+        with open("page_content.txt", "w", encoding="utf-8") as f:
+            f.write(content)
+        print("\n✅ 已保存到 page_content.txt")
+    else:
+        print("\n❌ 未抓取到内容")
 
 
 if __name__ == "__main__":
