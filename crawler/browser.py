@@ -89,33 +89,100 @@ class BrowserController:
         # JavaScript 脚本：隐藏自动化特征，模拟 Electron 环境
         anti_detection_script = """
         () => {
-            // 1. 隐藏 webdriver
+            // ===== 1. 隐藏自动化特征 =====
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined,
                 configurable: true
             });
+            
+            // 隐藏 Playwright 标记
+            delete window.__playwright;
+            delete window.__playwright_chromium_handle;
+            window._playwrightDriver = undefined;
+            
+            // 隐藏 CDP 连接
+            Object.defineProperty(window, 'cdp', { value: undefined });
 
-            // 2. 模拟 Electron 环境
+            // ===== 2. 完整模拟 Electron 环境 =====
             window.process = {
                 type: 'renderer',
                 versions: {
                     node: '14.16.0',
                     electron: '13.6.9',
-                    chrome: '91.0.4472.164'
-                }
+                    chrome: '91.0.4472.164',
+                    v8: '9.1.269.40-electron.0'
+                },
+                arch: 'x64',
+                platform: 'win32',
+                env: {},
+                argv: [],
+                execPath: '',
+                cwd: () => '',
+                chdir: () => {},
+                umask: () => 0,
+                getuid: () => 0,
+                getgid: () => 0,
+                setuid: () => {},
+                setgid: () => {},
+                exit: () => {},
+                kill: () => {},
+                pid: 1234,
+                ppid: 1233,
+                title: 'KdBrowser',
+                version: '14.16.0',
+                mainModule: { filename: '' },
+                require: () => ({})
             };
 
-            // 3. 模拟 Node.js 全局对象
-            window.require = function() {};
+            // ===== 3. 完整模拟 Node.js 全局对象 =====
+            window.require = function(module) {
+                if (module === 'electron') {
+                    return {
+                        ipcRenderer: {
+                            send: () => {},
+                            on: () => {},
+                            once: () => {},
+                            removeListener: () => {},
+                            invoke: () => Promise.resolve()
+                        },
+                        remote: undefined,
+                        app: {
+                            getVersion: () => '13.6.9',
+                            getName: () => 'KdBrowser'
+                        },
+                        BrowserWindow: function() {},
+                        Menu: {
+                            buildFromTemplate: () => ({
+                                popup: () => {},
+                                closePopup: () => {}
+                            })
+                        },
+                        dialog: {
+                            showMessageBox: () => Promise.resolve({ response: 0 })
+                        }
+                    };
+                }
+                return {};
+            };
             window.module = { exports: {} };
             window.exports = {};
+            window.__dirname = '';
+            window.__filename = '';
 
-            // 4. 添加 Kd-Browser 标识
+            // ===== 4. 添加 Kd-Browser 标识 =====
             window.KdBrowser = {
-                version: '3.2.24'
+                version: '3.2.24',
+                name: '乾坤浏览器',
+                build: '20241201'
             };
+            window.KdBrowser = window.KdBrowser;
+            
+            // 确保所有可能的检测点
+            window['Kd-Browser'] = '3.2.24';
+            window['kd-browser'] = '3.2.24';
+            window['kdBrowser'] = { version: '3.2.24' };
 
-            // 5. 修改 chrome 对象，模拟 Electron 环境
+            // ===== 5. 修改 chrome 对象，模拟 Electron 环境 =====
             const originalChrome = window.chrome;
             Object.defineProperty(window, 'chrome', {
                 get: () => ({
@@ -123,17 +190,20 @@ class BrowserController:
                     app: {
                         isInstalled: false,
                         installState: 'disabled',
-                        runningState: 'cannot_run'
+                        runningState: 'cannot_run',
+                        getDetails: () => ({ id: '' }),
+                        uninstall: () => {},
+                        install: () => {}
                     },
                     runtime: {
-                        id: undefined,
+                        id: '',
                         lastError: undefined,
                         onMessage: {
                             addListener: () => {},
                             removeListener: () => {},
                             hasListener: () => false
                         },
-                        sendMessage: () => {},
+                        sendMessage: () => Promise.resolve([]),
                         connect: () => ({
                             onMessage: {
                                 addListener: () => {},
@@ -147,14 +217,32 @@ class BrowserController:
                             },
                             disconnect: () => {},
                             postMessage: () => {},
-                            name: ''
-                        })
+                            name: '',
+                            sender: { id: '' }
+                        }),
+                        onConnect: {
+                            addListener: () => {},
+                            removeListener: () => {},
+                            hasListener: () => false
+                        },
+                        getManifest: () => ({ name: 'KdBrowser' }),
+                        getURL: (path) => path,
+                        reload: () => {},
+                        requestUpdateCheck: () => Promise.resolve({ status: 'no_update' }),
+                        platformInfo: {
+                            os: 'win',
+                            arch: 'x86-64',
+                            nacl_arch: 'x86-64'
+                        }
+                    },
+                    extension: {
+                        lastError: undefined
                     }
                 }),
                 configurable: true
             });
 
-            // 6. 修改 navigator 属性
+            // ===== 6. 修改 navigator 属性 =====
             Object.defineProperty(navigator, 'languages', {
                 get: () => ['zh-CN', 'zh', 'en'],
                 configurable: true
@@ -170,7 +258,47 @@ class BrowserController:
                 configurable: true
             });
 
-            // 7. 修改 permissions API
+            Object.defineProperty(navigator, 'userAgent', {
+                get: () => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36',
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'vendor', {
+                get: () => 'Google Inc.',
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'product', {
+                get: () => 'Gecko',
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'productSub', {
+                get: () => '20030107',
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'appName', {
+                get: () => 'Netscape',
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'appCodeName', {
+                get: () => 'Mozilla',
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'cookieEnabled', {
+                get: () => true,
+                configurable: true
+            });
+
+            Object.defineProperty(navigator, 'doNotTrack', {
+                get: () => 'unspecified',
+                configurable: true
+            });
+
+            // ===== 7. 修改 permissions API =====
             const originalQuery = window.navigator.permissions?.query;
             if (originalQuery) {
                 window.navigator.permissions.query = (parameters) => {
@@ -180,19 +308,54 @@ class BrowserController:
                 };
             }
 
-            // 8. 隐藏 Playwright 标记
-            delete window.__playwright;
+            // ===== 8. 添加更多 Electron 特征 =====
+            window.Notification = function(title, options) {};
+            window.Notification.permission = 'granted';
+            
+            // 模拟 clipboard API
+            navigator.clipboard = {
+                writeText: () => Promise.resolve(),
+                readText: () => Promise.resolve(''),
+                write: () => Promise.resolve(),
+                read: () => Promise.resolve({ types: [] })
+            };
+            
+            // 隐藏自动化检测
+            window.__selenium_evaluate = undefined;
+            window.__webdriver_evaluate = undefined;
+            window.__driver_evaluate = undefined;
+            
+            // 模拟触摸支持
+            Object.defineProperty(navigator, 'maxTouchPoints', {
+                get: () => 0,
+                configurable: true
+            });
+            
+            // 添加更多 Electron 特有属性
+            window.electron = {
+                version: '13.6.9',
+                ipcRenderer: {
+                    send: () => {},
+                    on: () => {},
+                    invoke: () => Promise.resolve()
+                }
+            };
+            window.electronAPI = {};
+            
+            // 隐藏更多 Playwright 标记
             delete window.__PW_inspect;
             delete window.__PW_driver;
 
-            // 9. 修改 console.log，过滤 Playwright 信息
+            // 修改 console.log，过滤 Playwright 信息
             const originalLog = console.log;
             console.log = function(...args) {
-                if (args[0] && typeof args[0] === 'string' && args[0].includes('playwright')) {
+                if (args[0] && typeof args[0] === 'string' && args[0].toLowerCase().includes('playwright')) {
                     return;
                 }
                 originalLog.apply(console, args);
             };
+            
+            console.log('KdBrowser environment simulated successfully');
         }
         """
 
