@@ -5,25 +5,25 @@ import asyncio
 import json
 import base64
 import urllib.request
-from urllib.parse import urlparse
 
 
 async def websocket_connect(url):
-    parsed = urlparse(url)
-    host = parsed.netloc or parsed.path.split("/")[0]
-    path = parsed.path or "/"
+    url = url.replace("localhost", "127.0.0.1")
 
-    if ":" not in host:
-        host = host + ":9222"
+    parts = url.replace("ws://", "").split("/", 1)
+    host_port = parts[0].split(":")
+    host = host_port[0]
+    port = int(host_port[1]) if len(host_port) > 1 else 9222
+    path = "/" + parts[1] if len(parts) > 1 else "/"
 
     import asyncio
-    reader, writer = await asyncio.open_connection(host, 9222)
+    reader, writer = await asyncio.open_connection(host, port)
 
     key = base64.b64encode(b"randomkey12345678").decode()
 
     handshake = (
         f"GET {path} HTTP/1.1\r\n"
-        f"Host: {host}\r\n"
+        f"Host: {host}:{port}\r\n"
         f"Upgrade: websocket\r\n"
         f"Connection: Upgrade\r\n"
         f"Sec-WebSocket-Key: {key}\r\n"
@@ -97,7 +97,6 @@ async def main():
             return
 
         print(f"\n正在连接到: {target.get('title')}")
-        print(f"WebSocket URL: {ws_url}")
 
         reader, writer = await websocket_connect(ws_url)
         if not reader:
