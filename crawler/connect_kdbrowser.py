@@ -1,26 +1,76 @@
 """
-直接使用 CDP 协议连接 kdbrowser - 绕过 Playwright 兼容性问题
+使用 Python 标准库连接 kdbrowser - 无需额外安装
 """
 import asyncio
 import json
-import websockets
+import base64
+import hashlib
+import urllib.request
+import sys
 
 
-TARGET_URL = "https://qiankundg.web.guosen.com.cn/apps/opp/index.html?theme=web2"
+async def websocket_connect(url):
+    ws_host, ws_path = url.replace("ws://", "").split("/", 1)
+    ws_path = "/" + ws_path
+
+    import asyncio
+    reader, writer = await asyncio.open_connection(ws_host, 9222)
+
+    key = base64.b64encode(b"randomkey12345678").decode()
+
+    handshake = (
+        f"GET {ws_path} HTTP/1.1\r\n"
+        f"Host: {ws_host}\r\n"
+        f"Upgrade: websocket\r\n"
+        f"Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {key}\r\n"
+        f"Sec-WebSocket-Version: 13\r\n\r\n"
+    )
+    writer.write(handshake.encode())
+    await writer.drain()
+
+    response = await reader.read(1024)
+    print("WebSocket 握手响应:", response.decode()[:200])
+
+    return reader, writer
 
 
-async def send_cmd(ws, method, cmd_id=1, params=None):
-    msg = {"id": cmd_id, "method": method}
-    if params:
-        msg["params"] = params
-    await ws.send(json.dumps(msg))
-    resp = await ws.recv()
-    return json.loads(resp)
+async def ws_send(writer, msg_id, method, params=None):
+    data = json.dumps({"id": msg_id, "method": method, "params": params or {}}).encode()
+    frame = bytearray()
+    frame.append(0x81)
+    length = len(data)
+    if length < 126:
+        frame.append(length)
+    elif length < 65536:
+        frame.append(126)
+        frame.extend(length.to_bytes(2, "big"))
+    else:
+        frame.append(127)
+        frame.extend(length.to_bytes(8, "big"))
+    frame.extend(data)
+    writer.write(frame)
+    await writer.drain()
+
+
+async def ws_recv(reader):
+    data = await reader.read(4096)
+    if len(data) < 2:
+        return None
+    length = data[1] & 0x7F
+    payload_start = 2
+    if length == 126:
+        length = int.from_bytes(data[2:4], "big")
+        payload_start = 4
+    elif length == 127:
+        length = int.from_bytes(data[2:10], "big")
+        payload_start = 10
+    payload = data[payload_start:payload_start + length]
+    return json.loads(payload.decode())
 
 
 async def main():
     try:
-        import urllib.request
         req = urllib.request.Request(
             "http://localhost:9222/json",
             headers={"Content-Type": "application/json"}
@@ -30,7 +80,7 @@ async def main():
 
         print(f"发现 {len(targets)} 个页面:")
         for i, t in enumerate(targets):
-            print(f"  [{i}] {t.get('title', '无标题')} | {t.get('url', '')[:60]}")
+            print(f"  [{i}] {t.get('title', '无标题')}")
 
         target = next((t for t in targets if 'qiankun' in t.get('url', '').lower() or '受理' in t.get('title', '')), targets[0])
         ws_url = target.get('webSocketDebuggerUrl')
@@ -41,25 +91,32 @@ async def main():
 
         print(f"\n正在连接到: {target.get('title')}")
 
-        async with websockets.connect(ws_url) as ws:
-            print("已连接 WebSocket")
+        reader, writer = await websocket_connect(ws_url)
 
-            result = await send_cmd(ws, "Target.getTargets")
-            print(f"目标信息: {json.dumps(result, indent=2, ensure_ascii=False)[:500]}")
+        await ws_send(writer, 1, "Page.enable")
+        resp = await ws_recv(reader)
+        print(f"Page.enable: {resp}")
 
-            result = await send_cmd(ws, "Page.getFrameTree")
-            print(f"\n页面框架: {json.dumps(result, indent=2, ensure_ascii=False)[:800]}")
+        await ws_send(writer, 2, "Runtime.enable")
+        resp = await ws_recv(reader)
+        print(f"Runtime.enable: {resp}")
 
-            result = await send_cmd(ws, "Runtime.evaluate", params={
-                "expression": "document.title",
-                "returnByValue": True
-            })
-            print(f"\n页面标题: {result}")
+        await ws_send(writer, 3, "Runtime.evaluate", {
+            "expression": "document.title",
+            "returnByValue": True
+        })
+        resp = await ws_recv(reader)
+        print(f"\n页面标题: {resp}")
 
-            print("\n连接成功！现在可以执行抓取脚本了")
+        await ws_send(writer, 4, "DOM.getDocument", {"depth": 0})
+        resp = await ws_recv(reader)
+        print(f"\nDOM 根节点: {resp}")
 
-    except ImportError:
-        print("需要安装 websockets: pip install websockets")
+        print("\n✅ 连接成功！现在可以在 kdbrowser 中操作页面，然后执行抓取")
+
+        writer.close()
+        await writer.wait_closed()
+
     except Exception as e:
         print(f"失败: {e}")
         import traceback
