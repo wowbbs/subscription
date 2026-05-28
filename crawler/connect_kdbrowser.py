@@ -12,14 +12,9 @@ class CDPClient:
         self.reader = reader
         self.writer = writer
         self.msg_id = 1
-        self.pending = {}
-        self._recv_task = None
+        self._buffer = b""
 
-    async def send(self, method, params=None):
-        msg_id = self.msg_id
-        self.msg_id += 1
-        data = json.dumps({"id": msg_id, "method": method, "params": params or {}}).encode()
-
+    def _encode_frame(self, data):
         frame = bytearray()
         frame.append(0x81)
         length = len(data)
@@ -32,18 +27,38 @@ class CDPClient:
             frame.append(127)
             frame.extend(length.to_bytes(8, "big"))
         frame.extend(data)
+        return bytes(frame)
 
+    async def _send_raw(self, data):
+        frame = self._encode_frame(json.dumps(data).encode())
         self.writer.write(frame)
         await self.writer.drain()
 
-        for _ in range(10):
-            result = await self._recv_one()
-            if result and result.get("id") == msg_id:
-                return result.get("result") or result
-        return None
+    async def send(self, method, params=None, timeout=3):
+        msg_id = self.msg_id
+        self.msg_id += 1
+
+        msg = {"id": msg_id, "method": method}
+        if params:
+            msg["params"] = params
+
+        await self._send_raw(msg)
+
+        try:
+            result = await asyncio.wait_for(self._recv_response(msg_id), timeout=timeout)
+            return result
+        except asyncio.TimeoutError:
+            return {"error": f"超时 (id={msg_id})"}
+
+    async def _recv_response(self, expected_id):
+        while True:
+            msg = await self._recv_one()
+            if msg and msg.get("id") == expected_id:
+                return msg.get("result") or msg
+            await asyncio.sleep(0.1)
 
     async def _recv_one(self):
-        header = await self.reader.read(2)
+        header = await asyncio.wait_for(self.reader.read(2), timeout=5)
         if len(header) < 2:
             return None
 
@@ -61,7 +76,7 @@ class CDPClient:
 
         payload = b""
         while len(payload) < length:
-            chunk = await self.reader.read(length - len(payload))
+            chunk = await self.reader.read(min(4096, length - len(payload)))
             if not chunk:
                 break
             payload += chunk
@@ -70,18 +85,12 @@ class CDPClient:
             return json.loads(payload.decode())
         return None
 
-    async def eval_js(self, code):
+    async def eval_js(self, code, timeout=5):
         result = await self.send("Runtime.evaluate", {
             "expression": code,
             "returnByValue": True
-        })
+        }, timeout=timeout)
         return result
-
-    async def get_html(self):
-        result = await self.eval_js("document.documentElement.outerHTML")
-        if result and "result" in result:
-            return result["result"].get("value", "")
-        return ""
 
 
 async def main():
@@ -136,29 +145,37 @@ async def main():
 
         client = CDPClient(reader, writer)
 
-        await client.send("Page.enable")
-        await client.send("Runtime.enable")
+        await client.send("Page.enable", timeout=2)
+        await client.send("Runtime.enable", timeout=2)
 
-        title = await client.eval_js("document.title")
-        print(f"\n页面标题: {title}")
+        await asyncio.sleep(0.5)
 
-        url = await client.eval_js("location.href")
-        print(f"页面 URL: {url}")
+        print("\n尝试获取页面信息...")
+        for i in range(3):
+            result = await client.eval_js("document.title")
+            if result and not result.get("error"):
+                print(f"页面标题: {result}")
+                break
+            print(f"  尝试 {i+1}/3: {result}")
+            await asyncio.sleep(1)
 
-        ready = await client.eval_js("document.readyState")
-        print(f"就绪状态: {ready}")
+        result = await client.eval_js("location.href")
+        print(f"页面 URL: {result}")
 
         print("\n✅ 连接成功！输入 JavaScript 代码执行抓取")
-        print("按 Ctrl+C 退出\n")
+        print("按 Ctrl+C 或输入 q 退出\n")
 
         while True:
-            code = input("JS > ").strip()
-            if code.lower() in ("exit", "quit", "q"):
+            try:
+                code = input("JS > ").strip()
+                if code.lower() in ("exit", "quit", "q"):
+                    break
+                if code:
+                    result = await client.eval_js(code)
+                    print(json.dumps(result, indent=2, ensure_ascii=False)[:1000])
+                    print()
+            except EOFError:
                 break
-            if code:
-                result = await client.eval_js(code)
-                print(json.dumps(result, indent=2, ensure_ascii=False)[:500])
-                print()
 
     except KeyboardInterrupt:
         print("\n退出中...")
