@@ -27,10 +27,15 @@ def analyze_headers():
 
     print(f"\n正在导航到: {target_url}")
     print("所有的网络请求和响应都会显示在控制台中")
+    print("页面需要一些时间加载，请耐心等待...")
     print("按 Ctrl+C 退出\n")
     
-    # 直接导航到目标URL
-    page.goto(target_url)
+    # 直接导航到目标URL，等待更长时间
+    page.goto(target_url, wait_until='domcontentloaded', timeout=60000)
+    
+    # 等待页面完全加载
+    page.wait_for_load_state('networkidle')
+    print("\n页面加载完成！")
 
     try:
         # 保持程序运行
