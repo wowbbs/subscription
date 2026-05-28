@@ -207,7 +207,7 @@ class BrowserController:
             headers.pop('X-Playwright', None)
             headers.pop('Playwright', None)
 
-            route.continue(headers=headers)
+            route.continue_(headers=headers)
 
         self.context.route('**/*', handle_route)
 
@@ -227,7 +227,7 @@ class BrowserController:
         # 重新设置请求拦截
         def handle_route(route):
             merged_headers = {**DEFAULT_HEADERS, **headers}
-            route.continue(headers=merged_headers)
+            route.continue_(headers=merged_headers)
 
         self.context.route('**/*', handle_route)
 
